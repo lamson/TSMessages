@@ -7,7 +7,7 @@
 //
 
 #import "TSMessageView.h"
-#import "HexColors.h"
+#import "HexColor.h"
 #import "TSBlurView.h"
 #import "TSMessage.h"
 
@@ -38,7 +38,6 @@ static NSMutableDictionary *_notificationDesign;
 
 /** Internal properties needed to resize the view on device rotation properly */
 @property (nonatomic, strong) UILabel *titleLabel;
-
 @property (nonatomic, strong) UILabel *contentLabel;
 @property (nonatomic, strong) UIImageView *iconImageView;
 @property (nonatomic, strong) UIButton *button;
@@ -58,94 +57,13 @@ static NSMutableDictionary *_notificationDesign;
 @end
 
 
-@implementation TSMessageView{
-    TSMessageNotificationType notificationType;
-}
--(void) setContentFont:(UIFont *)contentFont{
-    _contentFont = contentFont;
-    [self.contentLabel setFont:contentFont];
-}
-
--(void) setContentTextColor:(UIColor *)contentTextColor{
-    _contentTextColor = contentTextColor;
-    [self.contentLabel setTextColor:_contentTextColor];
-}
-
--(void) setTitleFont:(UIFont *)aTitleFont{
-    _titleFont = aTitleFont;
-    [self.titleLabel setFont:_titleFont];
-}
-
--(void)setTitleTextColor:(UIColor *)aTextColor{
-    _titleTextColor = aTextColor;
-    [self.titleLabel setTextColor:_titleTextColor];
-}
-
--(void) setMessageIcon:(UIImage *)messageIcon{
-    _messageIcon = messageIcon;
-    [self updateCurrentIcon];
-}
-
--(void) setErrorIcon:(UIImage *)errorIcon{
-    _errorIcon = errorIcon;
-    [self updateCurrentIcon];
-}
-
--(void) setSuccessIcon:(UIImage *)successIcon{
-    _successIcon = successIcon;
-    [self updateCurrentIcon];
-}
-
--(void) setWarningIcon:(UIImage *)warningIcon{
-    _warningIcon = warningIcon;
-    [self updateCurrentIcon];
-}
-
--(void) updateCurrentIcon{
-    UIImage *image = nil;
-    switch (notificationType)
-    {
-        case TSMessageNotificationTypeMessage:
-        {
-            image = _messageIcon;
-            self.iconImageView.image = _messageIcon;
-            break;
-        }
-        case TSMessageNotificationTypeError:
-        {
-            image = _errorIcon;
-            self.iconImageView.image = _errorIcon;
-            break;
-        }
-        case TSMessageNotificationTypeSuccess:
-        {
-            image = _successIcon;
-            self.iconImageView.image = _successIcon;
-            break;
-        }
-        case TSMessageNotificationTypeWarning:
-        {
-            image = _warningIcon;
-            self.iconImageView.image = _warningIcon;
-            break;
-        }
-        default:
-            break;
-    }
-    self.iconImageView.frame = CGRectMake(self.padding * 2,
-                                          self.padding,
-                                          image.size.width,
-                                          image.size.height);
-}
-
-
-
+@implementation TSMessageView
 
 + (NSMutableDictionary *)notificationDesign
 {
     if (!_notificationDesign)
     {
-        NSString *path = [[NSBundle bundleForClass:self.class] pathForResource:TSDesignFileName ofType:@"json"];
+        NSString *path = [[NSBundle mainBundle] pathForResource:TSDesignFileName ofType:@"json"];
         NSData *data = [NSData dataWithContentsOfFile:path];
         NSAssert(data != nil, @"Could not read TSMessages config file from main bundle with name %@.json", TSDesignFileName);
 
@@ -175,6 +93,21 @@ static NSMutableDictionary *_notificationDesign;
     }
 }
 
+
+- (UIColor *)colorFromHexString:(NSString *)hexString {
+    if (![hexString isEqual:@""]) {
+        unsigned rgbValue = 0;
+        NSScanner *scanner = [NSScanner scannerWithString:hexString];
+        [scanner setScanLocation:1]; // bypass '#' character
+        [scanner scanHexInt:&rgbValue];
+        return [UIColor colorWithRed:(CGFloat) (((rgbValue & 0xFF0000) >> 16) / 255.0)
+                               green:(CGFloat) (((rgbValue & 0xFF00) >> 8) / 255.0)
+                                blue:(CGFloat) ((rgbValue & 0xFF) / 255.0)
+                               alpha:1.0];
+    }
+    return [UIColor clearColor];
+}
+
 - (CGFloat)padding
 {
     // Adds 10 padding to to cover navigation bar
@@ -184,7 +117,7 @@ static NSMutableDictionary *_notificationDesign;
 - (id)initWithTitle:(NSString *)title
            subtitle:(NSString *)subtitle
               image:(UIImage *)image
-               type:(TSMessageNotificationType)aNotificationType
+               type:(TSMessageNotificationType)notificationType
            duration:(CGFloat)duration
    inViewController:(UIViewController *)viewController
            callback:(void (^)())callback
@@ -211,7 +144,6 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
 
         NSDictionary *current;
         NSString *currentString;
-        notificationType = aNotificationType;
         switch (notificationType)
         {
             case TSMessageNotificationTypeMessage:
@@ -244,10 +176,6 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
 
         if (!image && [[current valueForKey:@"imageName"] length])
         {
-            image = [self bundledImageNamed:[current valueForKey:@"imageName"]];
-        }
-        if (!image && [[current valueForKey:@"imageName"] length])
-        {
             image = [UIImage imageNamed:[current valueForKey:@"imageName"]];
         }
 
@@ -256,7 +184,8 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
             self.alpha = 0.0;
 
             // add background image here
-            UIImage *backgroundImage = [self bundledImageNamed:[current valueForKey:@"backgroundImageName"]];
+
+            UIImage *backgroundImage = [UIImage imageNamed:[current valueForKey:@"backgroundImageName"]];
             backgroundImage = [backgroundImage stretchableImageWithLeftCapWidth:0.0 topCapHeight:0.0];
 
             _backgroundImageView = [[UIImageView alloc] initWithImage:backgroundImage];
@@ -268,11 +197,11 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
             // On iOS 7 and above use a blur layer instead (not yet finished)
             _backgroundBlurView = [[TSBlurView alloc] init];
             self.backgroundBlurView.autoresizingMask = (UIViewAutoresizingFlexibleWidth);
-            self.backgroundBlurView.blurTintColor = [UIColor colorWithHexString:current[@"backgroundColor"]];
+            self.backgroundBlurView.blurTintColor =[self colorFromHexString:current[@"backgroundColor"]] ;
             [self addSubview:self.backgroundBlurView];
         }
 
-        UIColor *fontColor = [UIColor colorWithHexString:[current valueForKey:@"textColor"]];
+        UIColor *fontColor = [self colorFromHexString:[current valueForKey:@"textColor"]];
 
 
         self.textSpaceLeft = 2 * padding;
@@ -290,10 +219,10 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
         } else {
             [self.titleLabel setFont:[UIFont boldSystemFontOfSize:fontSize]];
         }
-        [self.titleLabel setShadowColor:[UIColor colorWithHexString:[current valueForKey:@"shadowColor"]]];
+
+        [self.titleLabel setShadowColor:[self colorFromHexString:[current valueForKey:@"shadowColor"]]];
         [self.titleLabel setShadowOffset:CGSizeMake([[current valueForKey:@"shadowOffsetX"] floatValue],
                                                     [[current valueForKey:@"shadowOffsetY"] floatValue])];
-
         self.titleLabel.numberOfLines = 0;
         self.titleLabel.lineBreakMode = NSLineBreakByWordWrapping;
         [self addSubview:self.titleLabel];
@@ -304,7 +233,7 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
             _contentLabel = [[UILabel alloc] init];
             [self.contentLabel setText:subtitle];
 
-            UIColor *contentTextColor = [UIColor colorWithHexString:[current valueForKey:@"contentTextColor"]];
+            UIColor *contentTextColor =[self colorFromHexString:[current valueForKey:@"contentTextColor"]];
             if (!contentTextColor)
             {
                 contentTextColor = fontColor;
@@ -342,20 +271,20 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
             _button = [UIButton buttonWithType:UIButtonTypeCustom];
 
 
-            UIImage *buttonBackgroundImage = [self bundledImageNamed:[current valueForKey:@"buttonBackgroundImageName"]];
+            UIImage *buttonBackgroundImage = [UIImage imageNamed:[current valueForKey:@"buttonBackgroundImageName"]];
 
             buttonBackgroundImage = [buttonBackgroundImage resizableImageWithCapInsets:UIEdgeInsetsMake(15.0, 12.0, 15.0, 11.0)];
 
             if (!buttonBackgroundImage)
             {
-                buttonBackgroundImage = [self bundledImageNamed:[current valueForKey:@"NotificationButtonBackground"]];
+                buttonBackgroundImage = [UIImage imageNamed:[current valueForKey:@"NotificationButtonBackground"]];
                 buttonBackgroundImage = [buttonBackgroundImage resizableImageWithCapInsets:UIEdgeInsetsMake(15.0, 12.0, 15.0, 11.0)];
             }
 
             [self.button setBackgroundImage:buttonBackgroundImage forState:UIControlStateNormal];
             [self.button setTitle:self.buttonTitle forState:UIControlStateNormal];
 
-            UIColor *buttonTitleShadowColor = [UIColor colorWithHexString:[current valueForKey:@"buttonTitleShadowColor"]];
+            UIColor *buttonTitleShadowColor =[self colorFromHexString:[current valueForKey:@"buttonTitleShadowColor"]];
             if (!buttonTitleShadowColor)
             {
                 buttonTitleShadowColor = self.titleLabel.shadowColor;
@@ -363,7 +292,7 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
 
             [self.button setTitleShadowColor:buttonTitleShadowColor forState:UIControlStateNormal];
 
-            UIColor *buttonTitleTextColor = [UIColor colorWithHexString:[current valueForKey:@"buttonTitleTextColor"]];
+            UIColor *buttonTitleTextColor = [self colorFromHexString:[current valueForKey:@"buttonTitleTextColor"]];
             if (!buttonTitleTextColor)
             {
                 buttonTitleTextColor = fontColor;
@@ -396,7 +325,8 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
                                                                    0.0, // will be set later
                                                                    screenWidth,
                                                                    [[current valueForKey:@"borderHeight"] floatValue])];
-            self.borderView.backgroundColor = [UIColor colorWithHexString:[current valueForKey:@"borderColor"]];
+            self.borderView.backgroundColor = [self colorFromHexString:[current valueForKey:@"borderColor"]];
+
             self.borderView.autoresizingMask = (UIViewAutoresizingFlexibleWidth);
             [self addSubview:self.borderView];
         }
@@ -600,13 +530,6 @@ canBeDismissedByUser:(BOOL)dismissingEnabled
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch
 {
     return ! ([touch.view isKindOfClass:[UIControl class]]);
-}
-
-#pragma mark - Grab Image From Pod Bundle
-- (UIImage *)bundledImageNamed:(NSString*)name{
-    NSBundle *bundle = [NSBundle bundleForClass:[self class]];
-    NSString *imagePath = [bundle pathForResource:name ofType:nil];
-    return [[UIImage alloc] initWithContentsOfFile:imagePath];
 }
 
 @end
